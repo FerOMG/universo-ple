@@ -261,9 +261,13 @@
     .cr-names b { font-size: clamp(24px, 7.4vw, 40px); }
     .intro-logos img { height: 26px; } .intro-logos .bine { height: 30px; }
   }
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
-  }
+  body.calm *, body.calm *::before, body.calm *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
+  .calm-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); font: 500 10.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--soft); transition: border-color .3s; }
+  .calm-btn:hover { border-color: rgba(255,255,255,.5); }
+  .calm-btn i { width: 26px; height: 14px; border-radius: 999px; background: rgba(255,255,255,.15); position: relative; }
+  .calm-btn i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--soft); transition: transform .25s; }
+  body.calm .calm-btn i { background: var(--leaf); }
+  body.calm .calm-btn i::after { transform: translateX(12px); background: #fff; }
 </style>
 </head>
 <body>
@@ -311,7 +315,7 @@
     <p class="intro-sub">Un viaje por el universo con el que aprendemos.</p>
     <button class="start magnetic" id="startBtn" data-cursor="Iniciar"><span class="start-ring"></span><span class="start-fill"></span><span class="start-label">Iniciar</span></button>
   </div>
-  <div class="intro-row"><span class="mono">Mueve el mouse para explorar</span><span class="mono">Se abre en pantalla completa</span></div>
+  <div class="intro-row"><button class="calm-btn" id="calmBtn" aria-pressed="false" data-cursor="Movimiento"><i></i><span>Modo calmado</span></button><span class="mono">Mueve el mouse · se abre en pantalla completa</span></div>
 </section>
 
 <!-- Interfaz de la experiencia -->
@@ -431,7 +435,9 @@
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
   const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Las animaciones son parte de la presentación: van activas por defecto.
+  // Quien prefiera menos movimiento puede activar el "Modo calmado" en la portada.
+  let REDUCED = false;
   const FINE = matchMedia("(hover: hover) and (pointer: fine)").matches;
   if (FINE) document.body.classList.add("fine");
 
@@ -640,6 +646,11 @@
     if (!creditsReturn) $("#intro").classList.add("on");
   }
   $("#skipBtn").addEventListener("click", endCredits);
+  $("#calmBtn").addEventListener("click", () => {
+    REDUCED = !REDUCED;
+    document.body.classList.toggle("calm", REDUCED);
+    $("#calmBtn").setAttribute("aria-pressed", REDUCED);
+  });
 
   /* ---------------- Inicio ---------------- */
   function start() {

@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PLE · Entorno Personal de Aprendizaje</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Experiencia: universo 3D a pantalla completa (Three.js) + capa de interfaz.
+     Look único y oscuro, a propósito. */
+  :root {
+    --bg: #040405;
+    --fg: #f4f4f2;
+    --soft: #c9c9c4;
+    --mute: #85858a;
+    --line: rgba(255, 255, 255, .09);
+    --glass: rgba(10, 10, 12, .58);
+    --display: "Inter Tight", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", Consolas, ui-monospace, monospace;
+    --ease: cubic-bezier(.2, .8, .2, 1);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); overflow: hidden; }
+  body { font: 400 17px/1.6 var(--display); -webkit-font-smoothing: antialiased; touch-action: none; }
+  body.fine, body.fine * { cursor: none !important; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; }
+  :focus-visible { outline: 2px solid var(--fg); outline-offset: 4px; border-radius: 10px; }
+  .mono { font-family: var(--mono); font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--mute); }
+
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(120% 90% at 50% 50%, transparent 45%, rgba(0,0,0,.75) 100%); }
+  body.nogl { background: radial-gradient(60% 50% at 60% 50%, #15151a 0%, var(--bg) 70%); }
+
+  /* ---------- Cursor ---------- */
+  .cursor { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; display: none; }
+  body.fine .cursor { display: block; }
+  .c-dot, .c-ring { position: absolute; left: 0; top: 0; border-radius: 50%; transform: translate(-50%, -50%); }
+  .c-dot { width: 6px; height: 6px; background: var(--fg); }
+  .c-ring { width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.5); transition: width .35s var(--ease), height .35s var(--ease), background .35s, border-color .35s; }
+  .cursor.hover .c-ring { width: 74px; height: 74px; border-color: rgba(255,255,255,.9); background: rgba(255,255,255,.06); }
+  .cursor.drag .c-ring { width: 26px; height: 26px; }
+  .c-label { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); font: 500 10px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; opacity: 0; transition: opacity .25s; }
+  .cursor.hover .c-label { opacity: 1; }
+
+  /* ---------- Intro ---------- */
+  .intro { position: fixed; inset: 0; z-index: 30; display: grid; grid-template-rows: auto 1fr auto;
+    padding: calc(env(safe-area-inset-top, 0px) + 28px) max(24px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 28px) max(24px, env(safe-area-inset-left, 0px));
+    transition: opacity 1.1s ease, visibility 1.1s; }
+  .intro.gone { opacity: 0; visibility: hidden; }
+  .intro-row { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .intro-center { align-self: center; justify-self: center; text-align: center; display: grid; justify-items: center; gap: 18px; }
+  .mega { margin: 0; font-weight: 700; font-size: clamp(110px, 22vw, 300px); line-height: .82; letter-spacing: -.06em; display: flex; }
+  .mega span { display: inline-block; animation: megaIn 1.4s var(--ease) both; background: linear-gradient(180deg, #ffffff 30%, #8d8d94 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .mega span:nth-child(2) { animation-delay: .12s; } .mega span:nth-child(3) { animation-delay: .24s; }
+  .intro-sub { margin: 0; font-weight: 300; font-size: clamp(18px, 2.2vw, 26px); color: var(--soft); animation: fadeUp 1s var(--ease) .5s both; }
+  .intro-kicker { animation: fadeUp 1s var(--ease) .3s both; }
+  .start { position: relative; margin-top: 22px; width: 132px; height: 132px; border-radius: 50%; display: grid; place-items: center; animation: fadeUp 1s var(--ease) .8s both; }
+  .start-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(255,255,255,.45); }
+  .start-ring::before, .start-ring::after { content: ""; position: absolute; inset: -1px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); animation: ping 2.6s ease-out infinite; }
+  .start-ring::after { animation-delay: 1.3s; }
+  .start-fill { position: absolute; inset: 0; border-radius: 50%; background: var(--fg); transform: scale(0); transition: transform .5s var(--ease); }
+  .start:hover .start-fill, .start:focus-visible .start-fill { transform: scale(1); }
+  .start-label { position: relative; font: 500 13px/1 var(--mono); letter-spacing: .2em; text-transform: uppercase; transition: color .3s; }
+  .start:hover .start-label, .start:focus-visible .start-label { color: var(--bg); }
+
+  /* ---------- HUD ---------- */
+  .hud { position: fixed; inset: 0; z-index: 20; pointer-events: none; opacity: 0; transition: opacity 1s ease .4s; }
+  .hud.on { opacity: 1; }
+  .hud .pe { pointer-events: auto; }
+  .hud-top { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; align-items: center;
+    padding: calc(env(safe-area-inset-top, 0px) + 22px) max(24px, env(safe-area-inset-right, 0px)) 0 max(24px, env(safe-area-inset-left, 0px)); }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg); box-shadow: 0 0 12px rgba(255,255,255,.8); }
+  .hud-right { display: flex; align-items: center; gap: 18px; }
+  .icon-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; transition: border-color .3s, background .3s; }
+  .icon-btn:hover { border-color: rgba(255,255,255,.5); background: rgba(255,255,255,.05); }
+  .progress { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: rgba(255,255,255,.06); }
+  .progress span { display: block; height: 100%; width: 0; background: var(--fg); transition: width .9s var(--ease); box-shadow: 0 0 10px rgba(255,255,255,.7); }
+
+  .dots { position: absolute; right: max(24px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); display: grid; gap: 14px; }
+  .dot-btn { position: relative; width: 22px; height: 22px; display: grid; place-items: center; }
+  .dot-btn i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.3); transition: transform .35s var(--ease), background .35s; }
+  .dot-btn.on i { background: var(--fg); transform: scale(1.6); box-shadow: 0 0 10px rgba(255,255,255,.7); }
+  .dot-btn span { position: absolute; right: 30px; top: 50%; transform: translate(6px, -50%); white-space: nowrap; font: 500 10.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--soft); opacity: 0; transition: opacity .3s, transform .3s var(--ease); }
+  .dot-btn:hover span, .dot-btn:focus-visible span { opacity: 1; transform: translate(0, -50%); }
+
+  .panel { position: absolute; left: max(6vw, env(safe-area-inset-left, 0px) + 24px); top: 50%; width: min(520px, 40vw);
+    transform: translateY(-50%); padding: 30px 30px 28px; border-radius: 20px; background: var(--glass); border: 1px solid var(--line);
+    backdrop-filter: blur(14px) saturate(120%); -webkit-backdrop-filter: blur(14px) saturate(120%);
+    opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility .6s; max-height: calc(100% - 200px); overflow: auto; touch-action: pan-y; overscroll-behavior: contain; }
+  .panel.on { opacity: 1; visibility: visible; }
+  .panel .rv { opacity: 0; transform: translateY(22px); filter: blur(6px); transition: opacity .8s var(--ease), transform .8s var(--ease), filter .8s var(--ease); transition-delay: calc(var(--i, 0) * 90ms + 150ms); }
+  .panel.on .rv { opacity: 1; transform: none; filter: none; }
+  .panel h2 { margin: 12px 0 14px; font: 600 clamp(30px, 3.3vw, 48px)/1.02 var(--display); letter-spacing: -.03em; text-wrap: balance; }
+  .panel p { margin: 0 0 12px; color: var(--soft); max-width: 46ch; }
+  .panel p:last-child { margin-bottom: 0; }
+  .panel[data-ch="5"] { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 88px); transform: none; width: min(430px, 36vw); padding: 24px 26px; }
+  .panel[data-ch="5"] h2 { font-size: clamp(28px, 2.6vw, 38px); }
+  .kick { display: flex; align-items: center; gap: 10px; }
+  .kick::before { content: ""; width: 22px; height: 1px; background: var(--mute); }
+
+  .quote { margin: 6px 0 16px; padding: 18px 20px; border-left: 2px solid var(--fg); background: rgba(255,255,255,.035); border-radius: 0 12px 12px 0; }
+  .quote q { display: block; quotes: "«" "»"; font: 300 19px/1.45 var(--display); color: var(--fg); }
+  .quote cite { display: block; margin-top: 10px; font-style: normal; }
+
+  .elist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0 14px; }
+  .ebtn { text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); transition: border-color .3s, background .3s, transform .3s var(--ease); }
+  .ebtn:hover { border-color: rgba(255,255,255,.4); transform: translateY(-2px); }
+  .ebtn.on { border-color: var(--fg); background: rgba(255,255,255,.07); }
+  .ebtn .mono { display: block; margin-bottom: 6px; }
+  .ebtn b { font-weight: 600; font-size: 15px; letter-spacing: -.005em; }
+  .detail { padding: 16px 18px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid var(--line); min-height: 150px; }
+  .detail .swap { transition: opacity .3s ease, transform .3s var(--ease); }
+  .detail .swap.out { opacity: 0; transform: translateY(8px); }
+  .detail h3 { margin: 6px 0 6px; font: 600 22px/1.15 var(--display); letter-spacing: -.01em; }
+  .detail p { font-size: 15.5px; line-height: 1.5; margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .chips span { font: 500 11px/1 var(--mono); padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--soft); }
+
+  .proc { display: grid; gap: 8px; margin-top: 8px; }
+  .prow { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px; align-items: baseline; text-align: left; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); transition: border-color .3s, background .3s, transform .3s var(--ease); }
+  .prow:hover, .prow.on { border-color: rgba(255,255,255,.55); background: rgba(255,255,255,.06); transform: translateX(4px); }
+  .prow b { font: 600 26px/1 var(--display); letter-spacing: -.02em; }
+  .prow span { color: var(--soft); font-size: 15px; line-height: 1.45; }
+  .prow small { display: block; margin-top: 6px; }
+
+  .traits { list-style: none; margin: 4px 0 14px; padding: 0; display: grid; gap: 2px; }
+  .traits li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .traits li:last-child { border-bottom: 1px solid var(--line); }
+  .traits b { display: block; font-weight: 600; font-size: 17px; }
+  .traits span { color: var(--soft); font-size: 15px; }
+  .note { font-size: 14.5px !important; color: var(--mute) !important; }
+
+  .row-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  .pill { display: inline-flex; align-items: center; gap: 10px; padding: 13px 20px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); font: 500 14px/1 var(--display); transition: background .3s, color .3s, border-color .3s; }
+  .pill:hover { border-color: var(--fg); }
+  .pill.solid { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+  .controls { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 0 max(24px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 22px) max(24px, env(safe-area-inset-left, 0px)); }
+  .ctrl { display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 999px; border: 1px solid var(--line); font: 500 13px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; background: rgba(10,10,12,.4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: border-color .3s, background .3s, opacity .3s; }
+  .ctrl:hover { border-color: rgba(255,255,255,.55); }
+  .ctrl.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .ctrl[disabled] { opacity: .25; pointer-events: none; }
+  .hint { text-align: center; }
+
+  .labels { position: fixed; inset: 0; pointer-events: none; z-index: 15; }
+  .plabel { position: absolute; left: 0; top: 0; white-space: nowrap; transform: translate(14px, -50%); opacity: 0; transition: opacity .5s; }
+  .plabel.show { opacity: 1; }
+  .plabel .mono { display: block; font-size: 10px; }
+  .plabel b { font: 600 15px/1.2 var(--display); letter-spacing: -.005em; text-shadow: 0 0 12px rgba(0,0,0,.9); }
+  .plabel.core { transform: translate(-50%, 26px); text-align: center; }
+  .plabel.hl b { color: #fff; text-shadow: 0 0 14px rgba(255,255,255,.6); }
+
+  @keyframes megaIn { from { opacity: 0; transform: translateY(40px) scale(.96); filter: blur(14px); } to { opacity: 1; transform: none; filter: none; } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  @keyframes ping { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(1.7); opacity: 0; } }
+
+  @media (max-width: 820px) {
+    .panel { left: 16px; right: 16px; width: auto; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); transform: none; max-height: 54%; padding: 22px 20px; }
+    .dots { display: none; }
+    .panel[data-ch="5"] { left: 16px; right: 16px; width: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); padding: 20px; }
+    .hint { display: none; }
+    .elist { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .prow { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .brand span.t { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl" aria-hidden="true"></canvas>
+<div class="vignette"></div>
+<div class="labels" id="labels" aria-hidden="true"></div>
+<div class="cursor" id="cursor"><div class="c-ring"></div><div class="c-dot"></div><div class="c-label" id="cLabel"></div></div>
+
+<!-- Pantalla de inicio -->
+<section class="intro" id="intro" aria-label="Inicio">
+  <div class="intro-row"><span class="mono">Experiencia interactiva</span><span class="mono" id="status">Cargando universo…</span></div>
+  <div class="intro-center">
+    <span class="mono intro-kicker">Entorno Personal de Aprendizaje</span>
+    <h1 class="mega" aria-label="PLE"><span>P</span><span>L</span><span>E</span></h1>
+    <p class="intro-sub">Un viaje por el universo con el que aprendes.</p>
+    <button class="start magnetic" id="startBtn" data-cursor="Iniciar"><span class="start-ring"></span><span class="start-fill"></span><span class="start-label">Iniciar</span></button>
+  </div>
+  <div class="intro-row"><span class="mono">Mueve el mouse para explorar</span><span class="mono">Mejor en pantalla completa</span></div>
+</section>
+
+<!-- Interfaz de la experiencia -->
+<div class="hud" id="hud">
+  <div class="progress"><span id="bar"></span></div>
+  <header class="hud-top">
+    <div class="brand mono"><span class="dot"></span><span class="t">PLE · Entorno Personal de Aprendizaje</span></div>
+    <div class="hud-right">
+      <span class="mono" id="count">01 / 06</span>
+      <button class="icon-btn pe magnetic" id="fsBtn" aria-label="Pantalla completa" data-cursor="Pantalla">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="dots pe" id="dots" aria-label="Capítulos"></nav>
+
+  <article class="panel pe" data-ch="0">
+    <div class="mono kick rv" style="--i:0">01 · El entorno</div>
+    <h2 class="rv" style="--i:1">Todo aprendizaje sucede en un entorno.</h2>
+    <p class="rv" style="--i:2">Un entorno es todo lo que te rodea cuando aprendes: espacios, herramientas, información y personas.</p>
+    <p class="rv" style="--i:3">Algunos entornos los diseña alguien más, como el salón de clases o el aula virtual. Otros los construyes tú cada vez que buscas, practicas o preguntas.</p>
+  </article>
+
+  <article class="panel pe" data-ch="1">
+    <div class="mono kick rv" style="--i:0">02 · Definición</div>
+    <h2 class="rv" style="--i:1">Un PLE es el entorno que tú construyes para aprender.</h2>
+    <div class="quote rv" style="--i:2">
+      <q>Es el conjunto de herramientas, fuentes de información, conexiones y actividades que cada persona usa de forma habitual para aprender.</q>
+      <cite class="mono">Basado en Adell y Castañeda (2010)</cite>
+    </div>
+    <p class="rv" style="--i:3">No es una aplicación ni una plataforma. Es tu manera de aprender, hecha visible. Tú estás en el centro.</p>
+  </article>
+
+  <article class="panel pe" data-ch="2">
+    <div class="mono kick rv" style="--i:0">03 · Elementos</div>
+    <h2 class="rv" style="--i:1">Cuatro elementos orbitan a tu alrededor.</h2>
+    <p class="rv" style="--i:2">Pasa el mouse sobre cada planeta y haz clic para conocerlo.</p>
+    <div class="elist rv" style="--i:3" id="elist"></div>
+    <div class="detail rv" style="--i:4" aria-live="polite">
+      <div class="swap" id="dSwap">
+        <span class="mono" id="dK">01 / 04</span>
+        <h3 id="dT">Herramientas</h3>
+        <p id="dP"></p>
+        <div class="chips" id="dC"></div>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel pe" data-ch="3">
+    <div class="mono kick rv" style="--i:0">04 · Procesos</div>
+    <h2 class="rv" style="--i:1">Con tu PLE haces tres cosas.</h2>
+    <div class="proc">
+      <button class="prow rv" style="--i:2" data-p="0" data-cursor="Leer"><b>Leer</b><span>Accedes a la información: buscas, lees, ves y escuchas.<small class="mono">Se apoya en tus fuentes</small></span></button>
+      <button class="prow rv" style="--i:3" data-p="1" data-cursor="Hacer"><b>Hacer</b><span>Transformas lo que aprendes: escribes, creas, practicas y reflexionas.<small class="mono">Herramientas y actividades</small></span></button>
+      <button class="prow rv" style="--i:4" data-p="2" data-cursor="Compartir"><b>Compartir</b><span>Conversas y publicas con otros: preguntas, comentas y colaboras.<small class="mono">Se apoya en tus conexiones</small></span></button>
+    </div>
+  </article>
+
+  <article class="panel pe" data-ch="4">
+    <div class="mono kick rv" style="--i:0">05 · Por qué es personal</div>
+    <h2 class="rv" style="--i:1">Nadie tiene un universo igual al tuyo.</h2>
+    <ul class="traits rv" style="--i:2">
+      <li><span class="mono">01</span><div><b>Lo diseñas tú.</b><span>Eliges tus herramientas, tus fuentes y a quién seguir.</span></div></li>
+      <li><span class="mono">02</span><div><b>Une lo formal y lo informal.</b><span>La escuela, internet y tu comunidad en un mismo lugar.</span></div></li>
+      <li><span class="mono">03</span><div><b>Está vivo.</b><span>Crece y cambia contigo a lo largo de la vida.</span></div></li>
+    </ul>
+    <p class="note rv" style="--i:3">El aula virtual es un entorno institucional. Tu PLE es todo el ecosistema con el que aprendes, dentro y fuera de la escuela.</p>
+  </article>
+
+  <article class="panel pe" data-ch="5">
+    <div class="mono kick rv" style="--i:0">06 · Tu universo</div>
+    <h2 class="rv" style="--i:1">Ahora explóralo.</h2>
+    <p class="rv" style="--i:2">Arrastra para girar, usa la rueda para acercarte y haz clic en el espacio para lanzar un pulso de luz. Toca un planeta para volver a sus detalles.</p>
+    <div class="row-btns rv" style="--i:3">
+      <button class="pill solid magnetic" id="againBtn" data-cursor="Repetir">Ver de nuevo</button>
+      <button class="pill magnetic" id="toElements" data-cursor="Elementos">Ver elementos</button>
+    </div>
+  </article>
+
+  <div class="controls">
+    <button class="ctrl pe magnetic" id="prevBtn" data-cursor="Atrás">← Anterior</button>
+    <span class="mono hint" id="hint">Rueda · flechas · clic</span>
+    <button class="ctrl primary pe magnetic" id="nextBtn" data-cursor="Siguiente">Siguiente →</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const FINE = matchMedia("(hover: hover) and (pointer: fine)").matches;
+  if (FINE) document.body.classList.add("fine");
+
+  /* ---------------- Contenido ---------------- */
+  const PLANETS = [
+    { k: "01", name: "Herramientas", short: "Con qué trabajas",
+      text: "Las aplicaciones y servicios con los que trabajas y creas: escribir, organizar, diseñar o programar.",
+      chips: ["Docs", "Notion", "Canva", "Drive"], color: 0xf4f4f2, r: 4.6, size: .55, speed: .22, tilt: .22, phase: .5 },
+    { k: "02", name: "Fuentes de información", short: "De dónde aprendes",
+      text: "De dónde obtienes lo que aprendes: artículos, libros, videos, podcasts, bases de datos y expertos.",
+      chips: ["Google Académico", "YouTube", "Podcasts", "Bibliotecas"], color: 0xc4cff5, r: 6.8, size: .72, speed: .15, tilt: -.14, phase: 2.2 },
+    { k: "03", name: "Conexiones", short: "Con quién aprendes",
+      text: "Las personas con las que aprendes: compañeros, docentes y comunidades. Juntas forman tu red personal de aprendizaje (PLN).",
+      chips: ["Compañeros", "Docentes", "Foros", "Comunidades"], color: 0xdcd0f7, r: 9.0, size: .64, speed: .11, tilt: .3, phase: 3.8 },
+    { k: "04", name: "Actividades", short: "Qué haces para aprender",
+      text: "Lo que haces para aprender: investigar, practicar, crear, debatir y reflexionar sobre lo aprendido.",
+      chips: ["Investigar", "Practicar", "Crear", "Reflexionar"], color: 0xc9ecdf, r: 11.2, size: .5, speed: .085, tilt: -.24, phase: 5.3 }
+  ];
+  const PROCESSES = [[1], [0, 3], [2]];
+  const CHAPTERS = ["El entorno", "Definición", "Elementos", "Procesos", "Por qué es personal", "Tu universo"];
+  // Encuadre de cámara por capítulo
+  const SHOTS = [
+    { pos: [0, 8, 31], look: [0, 0, 0] },
+    { pos: [8.5, 2.6, 12.5], look: [0, 0, 0] },
+    { pos: [0, 18, 20], look: [0, -1, 0] },
+    { pos: [-14, 6, 13], look: [0, 0, 0] },
+    { pos: [2, 44, 7], look: [0, 0, 0] },
+    { pos: [0, 11, 27], look: [0, 0, 0] }
+  ];
+
+  /* ---------------- UI: capítulos ---------------- */
+  const panels = $$(".panel");
+  const dotsEl = $("#dots");
+  dotsEl.innerHTML = CHAPTERS.map((c, i) => `<button class="dot-btn magnetic" data-i="${i}" aria-label="${String(i + 1).padStart(2, "0")} ${c}" data-cursor="Ir"><i></i><span>${String(i + 1).padStart(2, "0")} · ${c}</span></button>`).join("");
+  const dots = $$(".dot-btn");
+  $("#elist").innerHTML = PLANETS.map((p, i) => `<button class="ebtn" data-e="${i}" data-cursor="Ver"><span class="mono">${p.k}</span><b>${p.name}</b></button>`).join("");
+  const ebtns = $$(".ebtn");
+
+  let chapter = -1, started = false, selected = 0, procHL = -1;
+
+  function selectPlanet(i) {
+    selected = i;
+    ebtns.forEach((b, j) => b.classList.toggle("on", j === i));
+    const sw = $("#dSwap"); sw.classList.add("out");
+    setTimeout(() => {
+      const p = PLANETS[i];
+      $("#dK").textContent = p.k + " / 04 · " + p.short;
+      $("#dT").textContent = p.name;
+      $("#dP").textContent = p.text;
+      $("#dC").innerHTML = p.chips.map(c => `<span>${c}</span>`).join("");
+      sw.classList.remove("out");
+    }, 200);
+  }
+  selectPlanet(0);
+
+  function go(i) {
+    i = clamp(i, 0, CHAPTERS.length - 1);
+    if (i === chapter) return;
+    chapter = i;
+    panels.forEach(p => { const on = +p.dataset.ch === i; p.classList.toggle("on", on); p.setAttribute("aria-hidden", !on); });
+    dots.forEach((d, j) => d.classList.toggle("on", j === i));
+    $("#count").textContent = String(i + 1).padStart(2, "0") + " / " + String(CHAPTERS.length).padStart(2, "0");
+    $("#bar").style.width = ((i + 1) / CHAPTERS.length * 100) + "%";
+    $("#prevBtn").disabled = i === 0;
+    $("#nextBtn").style.visibility = i === CHAPTERS.length - 1 ? "hidden" : "visible";
+    $("#hint").textContent = i === CHAPTERS.length - 1 ? "Arrastra · rueda para acercar · clic en el espacio" : "Rueda · flechas · clic";
+    if (i !== 3) setProc(-1);
+    if (window.__scene) window.__scene.onChapter(i);
+    setTimeout(measurePanel, 50); setTimeout(measurePanel, 900);
+  }
+  let panelRect = null;
+  function measurePanel() {
+    const ap = panels.find(p => p.classList.contains("on"));
+    panelRect = ap ? ap.getBoundingClientRect() : null;
+  }
+  addEventListener("resize", () => setTimeout(measurePanel, 100));
+  function setProc(i) {
+    procHL = i;
+    $$(".prow").forEach((r, j) => r.classList.toggle("on", j === i));
+  }
+
+  dots.forEach(d => d.addEventListener("click", () => go(+d.dataset.i)));
+  ebtns.forEach(b => {
+    b.addEventListener("click", () => selectPlanet(+b.dataset.e));
+    b.addEventListener("mouseenter", () => { hoverFromUI = +b.dataset.e; });
+    b.addEventListener("mouseleave", () => { hoverFromUI = -1; });
+  });
+  $$(".prow").forEach(r => {
+    r.addEventListener("mouseenter", () => setProc(+r.dataset.p));
+    r.addEventListener("focus", () => setProc(+r.dataset.p));
+    r.addEventListener("click", () => setProc(+r.dataset.p));
+  });
+  let hoverFromUI = -1;
+  $("#prevBtn").addEventListener("click", () => go(chapter - 1));
+  $("#nextBtn").addEventListener("click", () => go(chapter + 1));
+  $("#againBtn").addEventListener("click", () => go(0));
+  $("#toElements").addEventListener("click", () => go(2));
+  $("#fsBtn").addEventListener("click", () => {
+    const d = document;
+    if (!d.fullscreenElement) d.documentElement.requestFullscreen?.().catch(() => {});
+    else d.exitFullscreen?.().catch(() => {});
+  });
+
+  // Rueda, teclado y gestos
+  let wheelAcc = 0, wheelLock = 0;
+  window.addEventListener("wheel", e => {
+    if (!started) return;
+    if (chapter === CHAPTERS.length - 1 && !e.target.closest(".panel")) { window.__scene?.zoom(e.deltaY); return; }
+    if (e.target.closest(".panel") && e.target.closest(".panel").scrollHeight > e.target.closest(".panel").clientHeight) return;
+    const now = performance.now();
+    if (now < wheelLock) return;
+    wheelAcc += e.deltaY;
+    if (Math.abs(wheelAcc) > 60) { go(chapter + Math.sign(wheelAcc)); wheelAcc = 0; wheelLock = now + 1100; }
+  }, { passive: true });
+  window.addEventListener("keydown", e => {
+    if (!started) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); start(); } return; }
+    if (["ArrowRight", "ArrowDown", "PageDown"].includes(e.key)) { e.preventDefault(); go(chapter + 1); }
+    if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); go(chapter - 1); }
+  });
+  let touchY = null, touchX = null;
+  window.addEventListener("touchstart", e => { touchY = e.touches[0].clientY; touchX = e.touches[0].clientX; }, { passive: true });
+  window.addEventListener("touchend", e => {
+    if (!started || touchY === null || chapter === CHAPTERS.length - 1) return;
+    if (e.target.closest(".panel")) return;
+    const dy = touchY - e.changedTouches[0].clientY, dx = touchX - e.changedTouches[0].clientX;
+    if (Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx)) go(chapter + Math.sign(dy));
+    else if (Math.abs(dx) > 60) go(chapter + Math.sign(dx));
+    touchY = null;
+  }, { passive: true });
+
+  /* ---------------- Cursor y botones magnéticos ---------------- */
+  const cursor = $("#cursor"), cLabel = $("#cLabel");
+  const mouse = { x: innerWidth / 2, y: innerHeight / 2, nx: 0, ny: 0 };
+  const cpos = { x: mouse.x, y: mouse.y };
+  let uiHoverLabel = "";
+  window.addEventListener("pointermove", e => {
+    mouse.x = e.clientX; mouse.y = e.clientY;
+    mouse.nx = (e.clientX / innerWidth) * 2 - 1; mouse.ny = -(e.clientY / innerHeight) * 2 + 1;
+  }, { passive: true });
+  document.addEventListener("pointerover", e => {
+    const el = e.target.closest("[data-cursor], button");
+    uiHoverLabel = el ? (el.dataset.cursor || "") : "";
+    cursor.classList.toggle("hover", !!el);
+  });
+  $$(".magnetic").forEach(el => {
+    el.addEventListener("pointermove", e => {
+      if (!FINE) return;
+      const r = el.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+      el.style.transform = `translate(${dx * .22}px, ${dy * .3}px)`;
+    });
+    el.addEventListener("pointerleave", () => { el.style.transform = ""; });
+  });
+  function updateCursor(planetName) {
+    cpos.x = lerp(cpos.x, mouse.x, .2); cpos.y = lerp(cpos.y, mouse.y, .2);
+    cursor.style.transform = `translate(${cpos.x}px, ${cpos.y}px)`;
+    const label = planetName || uiHoverLabel;
+    if (planetName) cursor.classList.add("hover");
+    cLabel.textContent = label;
+  }
+
+  /* ---------------- Inicio ---------------- */
+  function start() {
+    if (started) return;
+    started = true;
+    $("#intro").classList.add("gone");
+    $("#hud").classList.add("on");
+    window.__scene?.warp();
+    setTimeout(() => go(0), REDUCED ? 0 : 1400);
+  }
+  $("#startBtn").addEventListener("click", start);
+
+  /* ---------------- Escena 3D ---------------- */
+  if (typeof THREE === "undefined") { fallback(); return; }
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: $("#gl"), antialias: true, powerPreference: "high-performance" });
+  } catch (err) { fallback(); return; }
+  function fallback() {
+    document.body.classList.add("nogl");
+    $("#status").textContent = "Listo";
+    const loop = () => { updateCursor(""); requestAnimationFrame(loop); }; loop();
+  }
+
+  const DPR = Math.min(devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(DPR);
+  renderer.setClearColor(0x040405, 1);
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x040405, 0.0045);
+  const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, .1, 900);
+  const INTRO_POS = new THREE.Vector3(0, 34, 150);
+  camera.position.copy(INTRO_POS);
+  const camPos = INTRO_POS.clone(), camLook = new THREE.Vector3();
+  const tgtPos = INTRO_POS.clone(), tgtLook = new THREE.Vector3();
+
+  // Textura de brillo suave
+  function glowTex(stops) {
+    const c = document.createElement("canvas"); c.width = c.height = 128;
+    const g = c.getContext("2d"), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    stops.forEach(([o, a]) => gr.addColorStop(o, `rgba(255,255,255,${a})`));
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    const t = new THREE.CanvasTexture(c); return t;
+  }
+  const GLOW = glowTex([[0, 1], [.2, .55], [.5, .12], [1, 0]]);
+  const HAZE = glowTex([[0, .5], [.4, .12], [1, 0]]);
+
+  const POINT_VS = `
+    uniform float uTime; uniform float uPixel; uniform float uWarp; uniform float uPulse; uniform float uScale;
+    attribute float aSize; attribute float aRand; attribute vec3 aColor;
+    varying vec3 vColor; varying float vAlpha;
+    void main(){
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      float d = length(position.xz);
+      float wave = 0.0;
+      if (uPulse >= 0.0) { wave = exp(-pow((d - uPulse * 11.0) * 0.8, 2.0)) * clamp(1.0 - uPulse * 0.28, 0.0, 1.0); }
+      vColor = aColor + wave * 0.9;
+      vAlpha = (0.62 + 0.38 * sin(uTime * (0.8 + aRand * 1.6) + aRand * 60.0)) + wave;
+      gl_PointSize = aSize * uPixel * uScale * (1.0 + uWarp * 2.5 + wave * 1.6) / -mv.z;
+      gl_Position = projectionMatrix * mv;
+    }`;
+  const POINT_FS = `
+    varying vec3 vColor; varying float vAlpha;
+    void main(){
+      float d = length(gl_PointCoord - 0.5);
+      float a = smoothstep(0.5, 0.0, d); a *= a;
+      gl_FragColor = vec4(vColor, a * vAlpha);
+    }`;
+  function pointMat(scale) {
+    return new THREE.ShaderMaterial({
+      vertexShader: POINT_VS, fragmentShader: POINT_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: { uTime: { value: 0 }, uPixel: { value: DPR }, uWarp: { value: 0 }, uPulse: { value: -1 }, uScale: { value: scale } }
+    });
+  }
+  function pointsGeo(n, fill) {
+    const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), size = new Float32Array(n), rnd = new Float32Array(n);
+    for (let i = 0; i < n; i++) fill(i, pos, col, size, rnd);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setAttribute("aColor", new THREE.BufferAttribute(col, 3));
+    g.setAttribute("aSize", new THREE.BufferAttribute(size, 1));
+    g.setAttribute("aRand", new THREE.BufferAttribute(rnd, 1));
+    return g;
+  }
+
+  // Estrellas de fondo
+  const starMat = pointMat(260);
+  const stars = new THREE.Points(pointsGeo(5200, (i, p, c, s, r) => {
+    const R = 120 + Math.random() * 320, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    p[i * 3] = R * Math.sin(ph) * Math.cos(th); p[i * 3 + 1] = R * Math.cos(ph) * .7; p[i * 3 + 2] = R * Math.sin(ph) * Math.sin(th);
+    const t = Math.random(); const b = .55 + Math.random() * .45;
+    c[i * 3] = b * (t > .85 ? .8 : 1); c[i * 3 + 1] = b * (t > .85 ? .86 : 1); c[i * 3 + 2] = b;
+    s[i] = Math.random() < .04 ? 4 + Math.random() * 3 : .8 + Math.random() * 1.8; r[i] = Math.random();
+  }), starMat);
+  scene.add(stars);
+
+  // Galaxia espiral
+  const galMat = pointMat(48);
+  const GAL_N = innerWidth < 700 ? 14000 : 24000, GAL_R = 17, BR = 3;
+  const inner = new THREE.Color(0xffffff), outer = new THREE.Color(0x5e6a8a);
+  const galaxy = new THREE.Points(pointsGeo(GAL_N, (i, p, c, s, r) => {
+    const rr = Math.pow(Math.random(), 1.5) * GAL_R + 1.2;
+    const br = (i % BR) / BR * Math.PI * 2, spin = rr * .38;
+    const rp = 2.6;
+    const rx = Math.pow(Math.random(), rp) * (Math.random() < .5 ? 1 : -1) * .55 * (1 + rr * .12);
+    const ry = Math.pow(Math.random(), rp) * (Math.random() < .5 ? 1 : -1) * .35;
+    const rz = Math.pow(Math.random(), rp) * (Math.random() < .5 ? 1 : -1) * .55 * (1 + rr * .12);
+    p[i * 3] = Math.cos(br + spin) * rr + rx; p[i * 3 + 1] = ry * (1.2 - rr / GAL_R); p[i * 3 + 2] = Math.sin(br + spin) * rr + rz;
+    const col = inner.clone().lerp(outer, Math.min(1, rr / GAL_R * 1.1));
+    const k = .45 + Math.random() * .55;
+    c[i * 3] = col.r * k; c[i * 3 + 1] = col.g * k; c[i * 3 + 2] = col.b * k;
+    s[i] = .6 + Math.random() * 1.6; r[i] = Math.random();
+  }), galMat);
+  scene.add(galaxy);
+
+  // Polvo cercano para profundidad
+  const dustMat = pointMat(70);
+  const dust = new THREE.Points(pointsGeo(700, (i, p, c, s, r) => {
+    p[i * 3] = (Math.random() - .5) * 90; p[i * 3 + 1] = (Math.random() - .5) * 40; p[i * 3 + 2] = (Math.random() - .5) * 90;
+    c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = .35; s[i] = .8 + Math.random() * 1.2; r[i] = Math.random();
+  }), dustMat);
+  scene.add(dust);
+
+  // Neblina
+  [[0, -2, -40, 120, .07], [-60, 20, -120, 160, .05], [70, -10, -90, 140, .04]].forEach(([x, y, z, sc, op]) => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: HAZE, color: 0x6f6a9a, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending }));
+    sp.position.set(x, y, z); sp.scale.set(sc, sc, 1); scene.add(sp);
+  });
+
+  // Núcleo: tú
+  const core = new THREE.Group(); scene.add(core);
+  core.add(new THREE.Mesh(new THREE.SphereGeometry(.75, 48, 48), new THREE.MeshBasicMaterial({ color: 0xffffff })));
+  const coreGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  coreGlow.scale.set(5.5, 5.5, 1); core.add(coreGlow);
+  const coreHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: HAZE, color: 0xb9c2ff, transparent: true, opacity: .3, depthWrite: false, blending: THREE.AdditiveBlending }));
+  coreHalo.scale.set(22, 22, 1); core.add(coreHalo);
+
+  // Planetas y órbitas
+  const PLANET_VS = `varying vec3 vN; varying vec3 vV;
+    void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position,1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`;
+  const PLANET_FS = `uniform vec3 uColor; uniform float uHover; uniform float uTime; varying vec3 vN; varying vec3 vV;
+    void main(){
+      float f = pow(1.0 - max(dot(vN, vV), 0.0), 2.4);
+      float band = 0.5 + 0.5 * sin(vN.y * 14.0 + uTime * 0.6);
+      vec3 base = uColor * (0.06 + 0.05 * band);
+      vec3 c = base + uColor * f * (0.9 + uHover * 0.9);
+      gl_FragColor = vec4(c, 1.0);
+    }`;
+  const planetObjs = PLANETS.map((p, i) => {
+    const pivot = new THREE.Group(); pivot.rotation.x = p.tilt; pivot.rotation.z = p.tilt * .5; scene.add(pivot);
+    const ringPts = []; for (let k = 0; k <= 160; k++) { const a = k / 160 * Math.PI * 2; ringPts.push(new THREE.Vector3(Math.cos(a) * p.r, 0, Math.sin(a) * p.r)); }
+    const ringMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .14, depthWrite: false });
+    const ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(ringPts), ringMat); pivot.add(ring);
+    const mat = new THREE.ShaderMaterial({ vertexShader: PLANET_VS, fragmentShader: PLANET_FS, uniforms: { uColor: { value: new THREE.Color(p.color) }, uHover: { value: 0 }, uTime: { value: 0 } } });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(p.size, 48, 48), mat); pivot.add(mesh);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: p.color, transparent: true, opacity: .55, depthWrite: false, blending: THREE.AdditiveBlending }));
+    mesh.add(glow); glow.scale.set(p.size * 5, p.size * 5, 1);
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(Math.max(1.3, p.size * 2.4), 12, 12), new THREE.MeshBasicMaterial({ visible: false }));
+    hit.userData.index = i; mesh.add(hit);
+    const label = document.createElement("div"); label.className = "plabel";
+    label.innerHTML = `<span class="mono">${p.k}</span><b>${p.name}</b>`; $("#labels").appendChild(label);
+    return { p, pivot, ring, ringMat, mesh, mat, glow, hit, label, hover: 0, angle: p.phase };
+  });
+  const coreLabel = document.createElement("div"); coreLabel.className = "plabel core"; coreLabel.innerHTML = `<b>TÚ</b>`; $("#labels").appendChild(coreLabel);
+
+  // Líneas de salto (warp)
+  const WARP_N = 420, warpPos = new Float32Array(WARP_N * 6);
+  const warpDir = new THREE.Vector3().subVectors(new THREE.Vector3(...SHOTS[0].pos), INTRO_POS).normalize();
+  for (let i = 0; i < WARP_N; i++) {
+    const t = Math.random();
+    const base = INTRO_POS.clone().lerp(new THREE.Vector3(...SHOTS[0].pos), t);
+    const off = new THREE.Vector3((Math.random() - .5) * 60, (Math.random() - .5) * 36, (Math.random() - .5) * 60);
+    const a = base.add(off), b = a.clone().addScaledVector(warpDir, 4 + Math.random() * 10);
+    warpPos.set([a.x, a.y, a.z, b.x, b.y, b.z], i * 6);
+  }
+  const warpGeo = new THREE.BufferGeometry(); warpGeo.setAttribute("position", new THREE.BufferAttribute(warpPos, 3));
+  const warpMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+  scene.add(new THREE.LineSegments(warpGeo, warpMat));
+
+  /* ----- Estado de cámara ----- */
+  let warpT = -1, pulseStart = -1;
+  let free = false, theta = 0, phi = 1.1, radius = 28, dragging = false, dragMoved = 0, lastX = 0, lastY = 0, idle = 0;
+  let viewOX = 0, viewOY = 0;
+
+  window.__scene = {
+    warp() {
+      if (REDUCED) { camPos.set(...SHOTS[0].pos); tgtPos.set(...SHOTS[0].pos); return; }
+      warpT = 0;
+    },
+    onChapter(i) {
+      free = i === CHAPTERS.length - 1;
+      const s = SHOTS[i];
+      if (free) {
+        const v = camPos.clone(); radius = clamp(v.length(), 10, 70);
+        theta = Math.atan2(v.x, v.z); phi = Math.acos(clamp(v.y / radius, -1, 1));
+        idle = 0;
+      } else if (warpT < 0 || warpT >= 1) {
+        tgtPos.set(...s.pos);
+      }
+      tgtLook.set(...s.look);
+    },
+    zoom(dy) { radius = clamp(radius + dy * .02, 9, 70); idle = 0; }
+  };
+
+  // Interacción con el lienzo
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  let hovered = -1;
+  const canvas = $("#gl");
+  canvas.addEventListener("pointerdown", e => { dragging = true; dragMoved = 0; lastX = e.clientX; lastY = e.clientY; if (free) cursor.classList.add("drag"); });
+  window.addEventListener("pointerup", e => {
+    if (!dragging) return;
+    dragging = false; cursor.classList.remove("drag");
+    if (dragMoved > 6 || !started) return;
+    if (e.target !== canvas) return;
+    if (hovered >= 0) {
+      selectPlanet(hovered);
+      if (chapter !== 2 && chapter !== CHAPTERS.length - 1) go(2);
+    } else if (!REDUCED) {
+      pulseStart = clock.elapsedTime;
+    }
+  });
+  window.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY;
+    dragMoved += Math.abs(dx) + Math.abs(dy);
+    if (free) { theta -= dx * .006; phi = clamp(phi - dy * .005, .18, 1.5); idle = 0; }
+  });
+
+  function resize() {
+    const w = innerWidth, h = innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  addEventListener("resize", resize); resize();
+
+  const clock = new THREE.Clock();
+  const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
+  $("#status").textContent = "Universo listo";
+
+  function frame() {
+    const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
+    const motion = REDUCED ? .2 : 1;
+
+    // Uniformes
+    [starMat, galMat, dustMat].forEach(m => { m.uniforms.uTime.value = t; });
+    galMat.uniforms.uPulse.value = pulseStart >= 0 ? t - pulseStart : -1;
+    if (pulseStart >= 0 && t - pulseStart > 4) pulseStart = -1;
+
+    galaxy.rotation.y += dt * .03 * motion;
+    stars.rotation.y += dt * .004 * motion;
+    dust.rotation.y -= dt * .01 * motion;
+    core.scale.setScalar(1 + Math.sin(t * 1.6) * .04);
+    coreGlow.material.opacity = .85 + Math.sin(t * 1.6) * .15;
+
+    // Salto inicial
+    if (warpT >= 0 && warpT < 1) {
+      warpT = Math.min(1, warpT + dt / 3.2);
+      const k = easeInOut(warpT);
+      camPos.lerpVectors(INTRO_POS, tmp.set(...SHOTS[0].pos), k);
+      tgtPos.copy(camPos);
+      const w = Math.sin(warpT * Math.PI);
+      starMat.uniforms.uWarp.value = w; galMat.uniforms.uWarp.value = w * .4;
+      warpMat.opacity = w * .55;
+      if (warpT >= 1) { tgtPos.set(...SHOTS[Math.max(0, chapter)].pos); starMat.uniforms.uWarp.value = 0; galMat.uniforms.uWarp.value = 0; warpMat.opacity = 0; }
+    }
+
+    // Cámara
+    if (free && started) {
+      idle += dt;
+      if (idle > 3 && !dragging) theta += dt * .05 * motion;
+      tgtPos.set(radius * Math.sin(phi) * Math.sin(theta), radius * Math.cos(phi), radius * Math.sin(phi) * Math.cos(theta));
+    }
+    if (!(warpT >= 0 && warpT < 1)) camPos.lerp(tgtPos, 1 - Math.exp(-dt * 1.8));
+    camLook.lerp(tgtLook, 1 - Math.exp(-dt * 2.2));
+    if (!started) { camPos.x = INTRO_POS.x + Math.sin(t * .1) * 6; camPos.y = INTRO_POS.y + Math.cos(t * .13) * 3; }
+    const par = free ? .3 : 1;
+    camera.position.set(camPos.x + mouse.nx * 1.6 * par, camPos.y + mouse.ny * 1.0 * par, camPos.z);
+    camera.lookAt(camLook);
+
+    // Desplazar la escena para dejar espacio al panel
+    const wide = innerWidth > 820;
+    const panelOn = started && chapter >= 0 && !free;
+    const tx = panelOn && wide ? -innerWidth * .17 : 0, ty = panelOn && !wide ? innerHeight * .17 : 0;
+    viewOX = lerp(viewOX, tx, 1 - Math.exp(-dt * 2.5)); viewOY = lerp(viewOY, ty, 1 - Math.exp(-dt * 2.5));
+    if (Math.abs(viewOX) > .5 || Math.abs(viewOY) > .5) camera.setViewOffset(innerWidth, innerHeight, viewOX, viewOY, innerWidth, innerHeight);
+    else camera.clearViewOffset();
+
+    // Planetas
+    ndc.set(mouse.nx, mouse.ny); ray.setFromCamera(ndc, camera);
+    const hits = started ? ray.intersectObjects(planetObjs.map(o => o.hit), false) : [];
+    hovered = hits.length ? hits[0].object.userData.index : -1;
+    const showLabels = started && chapter >= 2;
+    planetObjs.forEach((o, i) => {
+      o.angle += dt * o.p.speed * motion;
+      o.mesh.position.set(Math.cos(o.angle) * o.p.r, 0, Math.sin(o.angle) * o.p.r);
+      o.mesh.rotation.y += dt * .4;
+      const procOn = chapter === 3 && procHL >= 0 && PROCESSES[procHL].includes(i);
+      const active = hovered === i || hoverFromUI === i || procOn || (chapter === 2 && selected === i);
+      o.hover = lerp(o.hover, active ? 1 : 0, 1 - Math.exp(-dt * 6));
+      o.mat.uniforms.uHover.value = o.hover; o.mat.uniforms.uTime.value = t;
+      const sc = 1 + o.hover * .55; o.mesh.scale.setScalar(sc);
+      o.glow.material.opacity = .45 + o.hover * .5;
+      o.ringMat.opacity = (started ? .12 : .06) + o.hover * .5;
+      // Etiqueta proyectada
+      o.mesh.getWorldPosition(tmp); tmp2.copy(tmp).project(camera);
+      const sx = (tmp2.x * .5 + .5) * innerWidth, sy = (-tmp2.y * .5 + .5) * innerHeight;
+      const underPanel = panelRect && sx > panelRect.left - 190 && sx < panelRect.right + 8 && sy > panelRect.top - 12 && sy < panelRect.bottom + 12;
+      const vis = tmp2.z < 1 && showLabels && !underPanel;
+      o.label.style.transform = `translate(${sx}px, ${sy}px) translate(16px, -50%)`;
+      o.label.classList.toggle("show", vis);
+      o.label.classList.toggle("hl", o.hover > .5);
+    });
+    tmp2.set(0, 0, 0).project(camera);
+    coreLabel.style.transform = `translate(${(tmp2.x * .5 + .5) * innerWidth}px, ${(-tmp2.y * .5 + .5) * innerHeight}px) translate(-50%, 26px)`;
+    coreLabel.classList.toggle("show", started && chapter >= 1);
+
+    updateCursor(hovered >= 0 ? PLANETS[hovered].name : "");
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // Modo demo para revisar un capítulo directamente: #demo-0 … #demo-5
+  const demo = location.hash.match(/^#demo-(\d)$/);
+  if (demo) {
+    const n = clamp(+demo[1], 0, CHAPTERS.length - 1);
+    started = true; $("#intro").classList.add("gone"); $("#hud").classList.add("on");
+    go(n); camPos.set(...SHOTS[n].pos); tgtPos.set(...SHOTS[n].pos); camLook.set(...SHOTS[n].look);
+    if (n !== CHAPTERS.length - 1) { viewOX = innerWidth > 820 ? -innerWidth * .17 : 0; viewOY = innerWidth > 820 ? 0 : innerHeight * .17; }
+  }
+})();
+</script>
+</body>
+</html>

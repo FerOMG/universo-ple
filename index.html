@@ -514,13 +514,15 @@
       if (ctx) { if (ctx.state === "suspended") ctx.resume(); return; }
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
       ctx = new AC();
-      master = ctx.createGain(); master.gain.value = .9;
-      const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3;
-      master.connect(comp); comp.connect(ctx.destination);
+      master = ctx.createGain(); master.gain.value = 1;
+      const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -26; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = .01; comp.release.value = .3;
+      const makeup = ctx.createGain(); makeup.gain.value = 3.2;
+      const limiter = ctx.createDynamicsCompressor(); limiter.threshold.value = -2; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = .002; limiter.release.value = .1;
+      master.connect(comp); comp.connect(makeup); makeup.connect(limiter); limiter.connect(ctx.destination);
       verb = ctx.createConvolver(); verb.buffer = impulse(4, 2.6);
       const verbOut = ctx.createGain(); verbOut.gain.value = .55; verb.connect(verbOut); verbOut.connect(master);
       musicBus = ctx.createGain(); musicBus.gain.value = 0; musicBus.connect(master); musicBus.connect(verb);
-      sfxBus = ctx.createGain(); sfxBus.gain.value = .55; sfxBus.connect(master);
+      sfxBus = ctx.createGain(); sfxBus.gain.value = 1; sfxBus.connect(master);
       const sfxSend = ctx.createGain(); sfxSend.gain.value = .35; sfxBus.connect(sfxSend); sfxSend.connect(verb);
     }
     const now = () => ctx.currentTime;
@@ -552,16 +554,17 @@
       notes.forEach((m, k) => {
         [-7, 7].forEach(dt => {
           const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-          o.type = k === 0 ? "triangle" : "sawtooth"; o.frequency.value = hz(m - (k === 0 ? 12 : 0)); o.detune.value = dt;
-          f.type = "lowpass"; f.frequency.setValueAtTime(500, t); f.frequency.linearRampToValueAtTime(1400, t + 4); f.frequency.linearRampToValueAtTime(600, t + 9);
-          g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(k === 0 ? .05 : .022, t + 3); g.gain.setValueAtTime(k === 0 ? .05 : .022, t + 6.5); g.gain.exponentialRampToValueAtTime(0.0001, t + 10.5);
+          o.type = k === 0 ? "triangle" : "sawtooth"; o.frequency.value = hz(m + (k === 0 ? 0 : 12)); o.detune.value = dt;
+          f.type = "lowpass"; f.frequency.setValueAtTime(900, t); f.frequency.linearRampToValueAtTime(2600, t + 4); f.frequency.linearRampToValueAtTime(1100, t + 9);
+          const lvl = k === 0 ? .16 : .06;
+          g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(lvl, t + 2.5); g.gain.setValueAtTime(lvl, t + 6.5); g.gain.exponentialRampToValueAtTime(0.0001, t + 10.5);
           o.connect(f); f.connect(g); g.connect(musicBus); o.start(t); o.stop(t + 10.6);
         });
       });
     }
     function pluck(t, m, vel) {
-      tone({ f: hz(m), type: "sine", t, a: .004, peak: .09 * vel, rel: 2.4, bus: musicBus });
-      tone({ f: hz(m + 12), type: "sine", t, a: .004, peak: .025 * vel, rel: 1.2, bus: musicBus });
+      tone({ f: hz(m), type: "triangle", t, a: .004, peak: .22 * vel, rel: 2.4, bus: musicBus });
+      tone({ f: hz(m + 12), type: "sine", t, a: .004, peak: .08 * vel, rel: 1.2, bus: musicBus });
     }
     function schedule() {
       const ahead = now() + .6;
@@ -575,7 +578,7 @@
     function startMusic() {
       if (!ctx || !enabled || musicOn) return;
       musicOn = true;
-      musicBus.gain.cancelScheduledValues(now()); musicBus.gain.setTargetAtTime(customEl ? .9 : .55, now(), 1.2);
+      musicBus.gain.cancelScheduledValues(now()); musicBus.gain.setTargetAtTime(customEl ? .5 : 1, now(), .6);
       if (customEl) { customEl.play().catch(() => {}); return; }
       nextChordAt = Math.max(nextChordAt, now() + .05); nextArpAt = Math.max(nextArpAt, now() + 1.5);
       schedule(); schedTimer = setInterval(schedule, 200);
@@ -592,6 +595,7 @@
     return {
       init, startMusic, stopMusic,
       get enabled() { return enabled; },
+      resume() { if (ctx && ctx.state !== "running") ctx.resume(); },
       toggle() { enabled = !enabled; if (enabled) { init(); startMusic(); } else stopMusic(); return enabled; },
       useFile(file) {
         init(); if (!ctx) return;
@@ -601,14 +605,14 @@
         customEl.src = URL.createObjectURL(file);
         if (enabled) startMusic();
       },
-      tick() { if (!ok()) return; const t = performance.now(); if (t - lastTick < 70) return; lastTick = t; tone({ f: 1760, type: "sine", peak: .035, rel: .06 }); },
-      click() { if (!ok()) return; const t = now(); tone({ f: 660, type: "triangle", t, peak: .12, rel: .12 }); tone({ f: 990, type: "triangle", t: t + .06, peak: .1, rel: .18 }); },
+      tick() { if (!ok()) return; const t = performance.now(); if (t - lastTick < 70) return; lastTick = t; tone({ f: 1760, type: "sine", peak: .09, rel: .07 }); },
+      click() { if (!ok()) return; const t = now(); tone({ f: 660, type: "triangle", t, peak: .3, rel: .14 }); tone({ f: 990, type: "triangle", t: t + .06, peak: .26, rel: .2 }); },
       whoosh(dur = 1.1, big = false) { if (!ok()) return; noise({ dur, from: big ? 120 : 250, to: big ? 5000 : 2600, peak: big ? .35 : .16, q: big ? .8 : 1.4 }); if (big) tone({ f: 55, f2: 110, type: "sine", peak: .25, a: dur * .5, rel: dur * .6 }); },
-      impact(v = 1) { if (!ok()) return; const t = now(); tone({ f: 90, f2: 38, type: "sine", t, a: .01, peak: .45 * v, rel: 1.4 }); noise({ t, dur: .9, from: 4000, to: 300, peak: .18 * v, q: .6 }); [72, 79, 84, 88].forEach((m, i) => tone({ f: hz(m), type: "sine", t: t + .05 + i * .04, peak: .05 * v, rel: 2.2 })); },
-      chime(i = 0) { if (!ok()) return; const m = [69, 72, 76, 81][i % 4], t = now(); tone({ f: hz(m), t, peak: .12, rel: 1.8 }); tone({ f: hz(m + 19), t, peak: .03, rel: 1.1 }); },
-      planet(i) { if (!ok()) return; const t = now(); tone({ f: hz(PLANET_NOTES[i]), t, peak: .07, rel: .9 }); tone({ f: hz(PLANET_NOTES[i] - 12), type: "triangle", t, peak: .03, rel: .6 }); },
-      pulse() { if (!ok()) return; const t = now(); tone({ f: 420, f2: 70, type: "sine", t, a: .01, peak: .3, rel: 1.6 }); noise({ t, dur: 1.4, from: 2000, to: 200, peak: .08, q: .7 }); },
-      swell() { if (!ok()) return; const t = now(); [57, 64, 69, 76].forEach((m, i) => tone({ f: hz(m), type: i ? "sine" : "triangle", t: t + i * .12, a: 1.6, peak: .05, hold: .6, rel: 2.5 })); }
+      impact(v = 1) { if (!ok()) return; const t = now(); tone({ f: 90, f2: 38, type: "sine", t, a: .01, peak: .45 * v, rel: 1.4 }); noise({ t, dur: .9, from: 4000, to: 300, peak: .18 * v, q: .6 }); tone({ f: 180, f2: 70, type: "triangle", t, a: .01, peak: .3 * v, rel: .9 }); [72, 79, 84, 88].forEach((m, i) => tone({ f: hz(m), type: "sine", t: t + .05 + i * .04, peak: .13 * v, rel: 2.2 })); },
+      chime(i = 0) { if (!ok()) return; const m = [69, 72, 76, 81][i % 4], t = now(); tone({ f: hz(m), type: "triangle", t, peak: .3, rel: 1.8 }); tone({ f: hz(m + 19), t, peak: .08, rel: 1.1 }); },
+      planet(i) { if (!ok()) return; const t = now(); tone({ f: hz(PLANET_NOTES[i]), t, peak: .18, rel: 1 }); tone({ f: hz(PLANET_NOTES[i] - 12), type: "triangle", t, peak: .08, rel: .7 }); },
+      pulse() { if (!ok()) return; const t = now(); tone({ f: 520, f2: 110, type: "triangle", t, a: .01, peak: .35, rel: 1.4 }); noise({ t, dur: 1.4, from: 2000, to: 200, peak: .08, q: .7 }); },
+      swell() { if (!ok()) return; const t = now(); [57, 64, 69, 76].forEach((m, i) => tone({ f: hz(m + 12), type: i ? "sine" : "triangle", t: t + i * .12, a: 1.6, peak: .14, hold: .6, rel: 2.5 })); }
     };
   })();
 
@@ -778,6 +782,7 @@
     mouse.nx = (e.clientX / innerWidth) * 2 - 1; mouse.ny = -(e.clientY / innerHeight) * 2 + 1;
   }, { passive: true });
   let lastHoverEl = null;
+  window.addEventListener("pointerdown", () => Snd.resume(), { passive: true });
   document.addEventListener("pointerover", e => {
     const el = e.target.closest("[data-cursor], button");
     if (el && el !== lastHoverEl) Snd.tick();

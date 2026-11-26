@@ -221,13 +221,24 @@
   .finale h2 em { font-style: normal; background: linear-gradient(90deg, var(--gold), var(--blue), var(--flame), var(--leaf)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .finale.on .k { opacity: 1; transform: none; }
   .finale.on h2 { opacity: 1; transform: none; filter: none; }
-  .go { position: relative; margin-top: 18px; width: 190px; height: 190px; border-radius: 50%; display: grid; place-items: center; opacity: 0; transform: scale(.4); transition: opacity .8s ease 1s, transform 1.2s var(--expo) 1s; pointer-events: auto; }
+  .fin-sub { margin: 0; max-width: 40ch; color: var(--soft); font-weight: 300; font-size: clamp(16px, 1.6vw, 20px); opacity: 0; transform: translateY(10px); transition: opacity .8s ease .8s, transform .8s var(--ease) .8s; }
+  .finale.on .fin-sub { opacity: 1; transform: none; }
+  .explore-link { margin-top: 6px; font: 500 11.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); padding: 10px 14px; border-radius: 999px; transition: color .3s, opacity .8s ease 1.6s; opacity: 0; pointer-events: auto; }
+  .finale.on .explore-link { opacity: 1; }
+  .explore-link:hover { color: var(--fg); }
+  a.go, a.pill { text-decoration: none; color: inherit; }
+  a.pill.solid { color: var(--bg); }
+  .go { position: relative; margin-top: 18px; width: 210px; height: 210px; border-radius: 50%; display: grid; place-items: center; opacity: 0; transform: scale(.4); transition: opacity .8s ease 1s, transform 1.2s var(--expo) 1s; pointer-events: auto; }
   .finale.on .go { opacity: 1; transform: scale(1); }
-  .go-core { position: relative; z-index: 2; width: 112px; height: 112px; border-radius: 50%; background: var(--fg); color: var(--bg); display: grid; place-items: center; font: 800 40px/1 var(--display); letter-spacing: -.02em; box-shadow: 0 0 60px rgba(255,255,255,.35); transition: transform .5s var(--expo), box-shadow .5s; }
+  .go-core { position: relative; z-index: 2; width: 136px; height: 136px; border-radius: 50%; background: var(--fg); color: var(--bg); display: grid; place-content: center; justify-items: center; gap: 2px; font: 800 26px/1 var(--display); letter-spacing: -.02em; overflow: hidden; box-shadow: 0 0 60px rgba(255,255,255,.35); transition: transform .5s var(--expo), box-shadow .5s; }
   .go:hover .go-core { transform: scale(1.1); box-shadow: 0 0 90px rgba(255,255,255,.55); }
+  .go-core small { font: 600 11px/1 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: #555; }
+  .go-core i { font-style: normal; font: 600 15px/1 var(--display); margin-top: 4px; transition: transform .4s var(--expo); }
+  .go:hover .go-core i { transform: translate(4px, -4px); }
+  .go-core::after { content: ""; position: absolute; inset: 0; background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,.0) 40%, rgba(242,179,61,.35) 50%, rgba(69,168,240,.3) 56%, transparent 66%); transform: translateX(-120%); animation: shine 3.2s ease-in-out infinite 1.6s; }
   .go-ring { position: absolute; inset: 0; animation: spin 14s linear infinite; }
   .go:hover .go-ring { animation-duration: 4s; }
-  .go-wave { position: absolute; inset: 39px; border-radius: 50%; border: 1px solid rgba(255,255,255,.5); animation: ping 2.4s ease-out infinite; }
+  .go-wave { position: absolute; inset: 37px; border-radius: 50%; border: 1px solid rgba(255,255,255,.5); animation: ping 2.4s ease-out infinite; }
   .go-wave.b { animation-delay: 1.2s; }
   .orb { position: absolute; left: 50%; top: 50%; width: 0; height: 0; animation: spin var(--t) linear infinite; }
   .orb i { position: absolute; width: 12px; height: 12px; border-radius: 50%; left: -6px; top: calc(-1 * var(--r)); background: var(--c); box-shadow: 0 0 14px var(--c), 0 0 4px #fff; }
@@ -245,6 +256,7 @@
   @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
   @keyframes ping { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(1.7); opacity: 0; } }
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes shine { 0% { transform: translateX(-120%); } 45%, 100% { transform: translateX(120%); } }
   @keyframes maximize { 0% { clip-path: circle(0px at var(--fx) var(--fy)); opacity: 1; } 55% { clip-path: circle(150vmax at var(--fx) var(--fy)); opacity: 1; } 100% { clip-path: circle(150vmax at var(--fx) var(--fy)); opacity: 0; } }
 
   @media (max-width: 820px) {
@@ -392,16 +404,18 @@
   <div class="finale" id="finale">
     <div class="finale-inner">
       <span class="mono k">06 · Este es nuestro PLE</span>
-      <h2>¿Listos para <em>explorarlo</em>?</h2>
-      <button class="go magnetic" id="goBtn" data-cursor="¡Vamos!" aria-label="Ir a explorar nuestro universo">
-        <svg class="go-ring" viewBox="0 0 190 190" aria-hidden="true"><circle cx="95" cy="95" r="92" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2" stroke-dasharray="3 7"/></svg>
+      <h2>Ahora súmate a nuestro <em>Padlet</em>.</h2>
+      <p class="fin-sub">Comparte las herramientas, fuentes y personas de tu propio PLE.</p>
+      <a class="go magnetic" id="goBtn" href="https://padlet.com/fergayosocarcamo/entorno-personal-de-aprendizaje-s025s1e34cjzw02kw7nm" target="_blank" rel="noopener" data-cursor="Abrir Padlet" aria-label="Ir al Padlet (se abre en una pestaña nueva)">
+        <svg class="go-ring" viewBox="0 0 210 210" aria-hidden="true"><circle cx="105" cy="105" r="102" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2" stroke-dasharray="3 7"/></svg>
         <span class="go-wave"></span><span class="go-wave b"></span>
-        <span class="orb" style="--t:6s;--r:84px;--c:var(--gold)"><i></i></span>
-        <span class="orb" style="--t:8s;--r:76px;--c:var(--blue);animation-direction:reverse"><i></i></span>
-        <span class="orb" style="--t:10s;--r:90px;--c:var(--flame)"><i></i></span>
-        <span class="orb" style="--t:7s;--r:70px;--c:var(--leaf);animation-direction:reverse"><i></i></span>
-        <span class="go-core">IR</span>
-      </button>
+        <span class="orb" style="--t:6s;--r:96px;--c:var(--gold)"><i></i></span>
+        <span class="orb" style="--t:8s;--r:88px;--c:var(--blue);animation-direction:reverse"><i></i></span>
+        <span class="orb" style="--t:10s;--r:102px;--c:var(--flame)"><i></i></span>
+        <span class="orb" style="--t:7s;--r:82px;--c:var(--leaf);animation-direction:reverse"><i></i></span>
+        <span class="go-core"><small>Ir al</small>Padlet<i aria-hidden="true">↗</i></span>
+      </a>
+      <button class="explore-link magnetic" id="exploreBtn" data-cursor="Explorar">o explora nuestro universo →</button>
     </div>
   </div>
 
@@ -416,7 +430,8 @@
       <li><i style="background:var(--leaf)"></i>Marco Antonio Ramos Anastacio</li>
     </ul>
     <div class="row-btns rv" style="--i:4">
-      <button class="pill solid magnetic" id="againBtn" data-cursor="Repetir">Volver a empezar</button>
+      <a class="pill solid magnetic" href="https://padlet.com/fergayosocarcamo/entorno-personal-de-aprendizaje-s025s1e34cjzw02kw7nm" target="_blank" rel="noopener" data-cursor="Abrir Padlet">Ir al Padlet ↗</a>
+      <button class="pill magnetic" id="againBtn" data-cursor="Repetir">Volver a empezar</button>
       <button class="pill magnetic" id="creditsBtn" data-cursor="Créditos">Ver créditos</button>
     </div>
   </article>
@@ -579,7 +594,7 @@
     if (chapter === EXPLORE) return;
     if (["ArrowRight", "ArrowDown", "PageDown"].includes(e.key)) { e.preventDefault(); if (chapter < LAST_NAV) go(chapter + 1); }
     if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); go(chapter - 1); }
-    if (chapter === LAST_NAV && e.key === "Enter") { e.preventDefault(); launch(); }
+    if (chapter === LAST_NAV && e.key === "Enter" && !e.target.closest("a, button")) { e.preventDefault(); $("#goBtn").click(); }
   });
   let touchY = null, touchX = null;
   window.addEventListener("touchstart", e => { touchY = e.touches[0].clientY; touchX = e.touches[0].clientX; }, { passive: true });
@@ -669,9 +684,11 @@
   $("#startBtn").addEventListener("click", start);
 
   function launch() {
-    maximizeFrom($("#goBtn"), () => { window.__scene?.burst(); go(EXPLORE); });
+    maximizeFrom($("#exploreBtn"), () => { window.__scene?.burst(); go(EXPLORE); });
   }
-  $("#goBtn").addEventListener("click", launch);
+  // "Ir al Padlet": el enlace abre el Padlet en una pestaña nueva y aquí se ve el destello y el pulso de luz
+  $("#goBtn").addEventListener("click", () => { maximizeFrom($("#goBtn"), () => window.__scene?.burst()); });
+  $("#exploreBtn").addEventListener("click", launch);
 
   /* ---------------- Escena 3D ---------------- */
   function fallback() {

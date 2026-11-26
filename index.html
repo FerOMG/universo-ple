@@ -499,7 +499,7 @@
   /* ---------------- Sonido: música original generada + efectos (Web Audio) ---------------- */
   const Snd = (() => {
     let ctx = null, master, musicBus, sfxBus, verb, enabled = true, musicOn = false, schedTimer = null;
-    let customEl = null, customSrc = null, nextChordAt = 0, nextArpAt = 0, chordIx = 0;
+    let trackEl = null, fadeTimer = null, nextChordAt = 0, nextArpAt = 0, chordIx = 0, generating = false;
     // Progresión original en La menor (Am9 · Fmaj7 · C(add9) · Em7), 8 s por acorde
     const CHORDS = [[57, 60, 64, 71], [53, 57, 60, 64], [48, 55, 62, 64], [52, 55, 59, 62]];
     const PLANET_NOTES = [76, 79, 81, 84];
@@ -575,19 +575,36 @@
         nextArpAt += .5;
       }
     }
-    function startMusic() {
-      if (!ctx || !enabled || musicOn) return;
-      musicOn = true;
-      musicBus.gain.cancelScheduledValues(now()); musicBus.gain.setTargetAtTime(customEl ? .5 : 1, now(), .6);
-      if (customEl) { customEl.play().catch(() => {}); return; }
+    function fadeTrack(to, ms, after) {
+      clearInterval(fadeTimer);
+      const from = trackEl.volume, steps = Math.max(1, Math.round(ms / 50)); let k = 0;
+      fadeTimer = setInterval(() => { k++; trackEl.volume = Math.max(0, Math.min(1, from + (to - from) * k / steps)); if (k >= steps) { clearInterval(fadeTimer); after && after(); } }, 50);
+    }
+    function startGenerated() {
+      if (generating) return; generating = true;
+      musicBus.gain.cancelScheduledValues(now()); musicBus.gain.setTargetAtTime(1, now(), .6);
       nextChordAt = Math.max(nextChordAt, now() + .05); nextArpAt = Math.max(nextArpAt, now() + 1.5);
       schedule(); schedTimer = setInterval(schedule, 200);
     }
+    function stopGenerated() {
+      generating = false; clearInterval(schedTimer); schedTimer = null;
+      if (ctx) musicBus.gain.setTargetAtTime(0.0001, now(), .4);
+    }
+    function startMusic() {
+      if (!enabled || musicOn) return;
+      musicOn = true;
+      if (trackEl) { trackEl.volume = 0; trackEl.play().then(() => fadeTrack(.85, 1800)).catch(() => { trackEl = null; if (ctx) startGenerated(); }); return; }
+      if (ctx) startGenerated();
+    }
     function stopMusic() {
-      if (!ctx) return;
-      musicOn = false; clearInterval(schedTimer); schedTimer = null;
-      musicBus.gain.setTargetAtTime(0.0001, now(), .4);
-      if (customEl) customEl.pause();
+      musicOn = false; stopGenerated();
+      if (trackEl) fadeTrack(0, 500, () => trackEl.pause());
+    }
+    function setTrack(el) {
+      const wasOn = musicOn;
+      if (wasOn) { musicOn = false; stopGenerated(); if (trackEl && trackEl !== el) trackEl.pause(); }
+      trackEl = el; trackEl.loop = true;
+      if (wasOn) startMusic();
     }
 
     const ok = () => ctx && enabled;
@@ -597,13 +614,12 @@
       get enabled() { return enabled; },
       resume() { if (ctx && ctx.state !== "running") ctx.resume(); },
       toggle() { enabled = !enabled; if (enabled) { init(); startMusic(); } else stopMusic(); return enabled; },
+      setTrack,
       useFile(file) {
-        init(); if (!ctx) return;
-        stopMusic();
-        if (!customEl) { customEl = new Audio(); customEl.loop = true; customSrc = ctx.createMediaElementSource(customEl); customSrc.connect(musicBus); }
-        if (customEl.src) URL.revokeObjectURL(customEl.src);
-        customEl.src = URL.createObjectURL(file);
-        if (enabled) startMusic();
+        init();
+        const el = new Audio(URL.createObjectURL(file));
+        setTrack(el);
+        if (enabled && !musicOn) startMusic();
       },
       tick() { if (!ok()) return; const t = performance.now(); if (t - lastTick < 70) return; lastTick = t; tone({ f: 1760, type: "sine", peak: .09, rel: .07 }); },
       click() { if (!ok()) return; const t = now(); tone({ f: 660, type: "triangle", t, peak: .3, rel: .14 }); tone({ f: 990, type: "triangle", t: t + .06, peak: .26, rel: .2 }); },
@@ -615,7 +631,12 @@
       swell() { if (!ok()) return; const t = now(); [57, 64, 69, 76].forEach((m, i) => tone({ f: hz(m + 12), type: i ? "sine" : "triangle", t: t + i * .12, a: 1.6, peak: .14, hold: .6, rel: 2.5 })); }
     };
   })();
-
+  (() => {
+    const probe = new Audio();
+    probe.preload = "auto";
+    probe.addEventListener("canplay", () => { if (!probe.__ok) { probe.__ok = true; Snd.setTrack(probe); const l = document.getElementById("musicName"); if (l) l.textContent = "Interstellar (local)"; } }, { once: true });
+    probe.src = "musica.mp3";
+  })();
 
   /* ---------------- Contenido ---------------- */
   const PLANETS = [
@@ -828,7 +849,11 @@
     creditTimers.forEach(clearTimeout); creditTimers = [];
     creditsOn = false;
     credits.classList.add("gone");
-    if (!creditsReturn) $("#intro").classList.add("on");
+    if (!creditsReturn) {
+      $("#intro").classList.add("on");
+      // Arranque automático: el universo se abre solo después de la portada
+      setTimeout(() => { if (!started) start(); }, REDUCED ? 600 : 2600);
+    }
   }
   $("#skipBtn").addEventListener("click", endCredits);
   $("#calmBtn").addEventListener("click", () => {
@@ -870,6 +895,7 @@
   function syncSoundBtn() { const b = $("#soundBtn"); b.classList.toggle("off", !Snd.enabled); b.setAttribute("aria-pressed", Snd.enabled); }
   function enter(withSound) {
     if (gate.classList.contains("gone")) return;
+    fullscreen(true);
     if (withSound) { Snd.init(); Snd.startMusic(); Snd.click(); }
     else if (Snd.enabled) Snd.toggle();
     syncSoundBtn();
